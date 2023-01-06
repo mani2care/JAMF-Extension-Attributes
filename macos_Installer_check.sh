@@ -10,6 +10,6 @@ else
     ls /Applications/ | grep "Install macOS*"|
 while IFS= read -r line
 do 
-    echo "<result>$line</result>"                  
+    echo "<result>/Applications/$line</result>"                  
 done
 fi

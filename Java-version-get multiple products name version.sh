@@ -40,10 +40,10 @@ for jdk_path in $jdk_paths; do
         vendor=$(echo "$version_output" | grep -E "java.vendor =" | awk '{print $3}')
     fi
     
-    result+="$jdk_path - [$vendor] - $version "
+    result+="$jdk_path - [$vendor] - $version\n"
     
 done
 
 result+="</result>"
-echo "$result"
+echo -e "$result"
 exit 0

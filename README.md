@@ -27,3 +27,7 @@
     bb.com=16-Nov-2023 (+5 days)
     ndupatla= 5-Mar-2023 (-251 days)
     bb.com=16-Nov-2023 (+5 days)
+5) User All Matching Certificate Name+Expiration Date(Expiring in 30 days).sh
+   Output :
+   bb.com=16-Nov-2023 (+5 days)
+   bb.com=16-Nov-2023 (+5 days)

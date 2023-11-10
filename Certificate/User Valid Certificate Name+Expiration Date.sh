@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Grabs the expired certificate information
-cert_info=$(security find-identity | grep EXPIRED | awk '{gsub(/"/, ""); print $3 "=" $2}' | sort | uniq)
+#cert_info=$(security find-identity | grep EXPIRED | awk '{gsub(/"/, ""); print $3 "=" $2}' | sort | uniq)
 cert_name=$(security find-identity | grep EXPIRED | awk '{gsub(/"/, ""); print $3}' | sort | uniq)
 
 # Check each certificate

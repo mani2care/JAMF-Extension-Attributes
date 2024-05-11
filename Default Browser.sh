@@ -4,9 +4,6 @@
 #
 #            Name:  Default Browser.sh
 #     Description:  Returns default browser of currently logged-in user.
-#         Created:  2016-06-06
-#   Last Modified:  2023-03-13
-#         Version:  1.4
 
 ########## variable-ing ##########
 

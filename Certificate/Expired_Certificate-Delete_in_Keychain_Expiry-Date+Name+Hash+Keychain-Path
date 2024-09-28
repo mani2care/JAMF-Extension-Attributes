@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# Removed/Failed to Remove | Expiry Date | Certificate Name | SHA-256 Hash | Keychain Path
+
+# Output file
+output_file="expired_certificates_info.txt"
+
+# Create or clear the output file and add the header
+> "$output_file"
+
+# Current date for comparison
+current_date=$(date +"%Y-%m-%d")
+
+# Use security command to find all certificates and process each one
+/usr/bin/security find-certificate -a -Z | while IFS= read -r line; do
+    # Extract the SHA-256 hash
+    if [[ $line == *"SHA-256 hash:"* ]]; then 
+        sha256=$(echo "$line" | awk '{print $3}')
+    fi
+
+    # Extract the certificate name
+    if [[ $line == *"alis"* ]]; then 
+        cert_name=$(echo "$line" | sed 's/.*"alis"<blob>="\([^"]*\)".*/\1/')
+    fi
+
+    # Extract the keychain path
+    if [[ $line == *"keychain"* ]]; then 
+        keychain_path=$(echo "$line" | awk -F' ' '{print $NF}')
+    fi
+
+    # Once we have both the SHA-256 hash and certificate name, fetch the expiry date
+    if [[ -n $cert_name && -n $sha256 ]]; then
+        expiry_date=$(/usr/bin/security find-certificate -a -c "$cert_name" -p -Z | \
+            sed -n 'H; /^SHA-256/h; ${g;p;}' | \
+            /usr/bin/openssl x509 -noout -enddate 2>/dev/null | \
+            cut -f2 -d= | xargs -I {} sh -c 'if [ -n "{}" ]; then date -jf "%b %e %T %Y %Z" "{}" +"%Y-%m-%d"; fi')
+
+        # Only print if all information is found and if the certificate is expired
+        if [[ -n $expiry_date && "$expiry_date" < "$current_date" ]]; then
+            # Format expiry date to DD-MMM-YYYY
+            formatted_expiry_date=$(date -jf "%Y-%m-%d" "$expiry_date" +"%d-%b-%Y")
+            printf "%s | %s | %s | %s\n" "$formatted_expiry_date" "$cert_name" "$sha256" "$keychain_path" >> "$output_file"
+            
+            # Remove the expired certificate using its SHA-256 hash
+            if /usr/bin/security delete-certificate -Z "$sha256"; then
+                echo "Removed | $formatted_expiry_date | $cert_name | $sha256 | $keychain_path"
+            else
+                echo "Failed to Remove | $formatted_expiry_date | $cert_name | $sha256 | $keychain_path"
+            fi
+        fi
+
+        # Reset variables for the next certificate
+        expiry_date=""
+        cert_name=""
+        sha256=""
+        keychain_path=""
+    fi
+done
+
+# Check if any expired certificates were found
+if [[ ! -s "$output_file" ]]; then
+    echo "No_Certificate_Found"
+fi

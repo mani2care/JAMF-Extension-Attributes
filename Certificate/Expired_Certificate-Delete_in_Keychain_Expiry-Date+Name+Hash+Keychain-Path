@@ -3,7 +3,7 @@
 # Removed/Failed to Remove | Expiry Date | Certificate Name | SHA-256 Hash | Keychain Path
 
 # Output file
-output_file="expired_certificates_info.txt"
+output_file="/tmp/expired_certificates_info.txt"
 
 # Create or clear the output file and add the header
 > "$output_file"
@@ -61,3 +61,6 @@ done
 if [[ ! -s "$output_file" ]]; then
     echo "No_Certificate_Found"
 fi
+
+# Optionally remove the file
+ rm -rf "$output_file"

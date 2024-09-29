@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#Expiry Date | Certificate Name | SHA-256 Hash | Keychain Path
+# Expiry Date | Certificate Name | SHA-256 Hash | Keychain Path
 
 # Output file
 output_file="expired_certificates_info.txt"
@@ -57,7 +57,10 @@ sort -t '|' -k 1 "$output_file" > "$sorted_file"
 # Replace the original output file with the sorted file
 mv "$sorted_file" "$output_file"
 
+# Check if the output file is empty
+if [[ ! -s "$output_file" ]]; then
+    echo "No_Certificate_Found" > "$output_file"
+fi
+
 # Display output
-
 echo "<result>$(cat "$output_file")</result>"
-

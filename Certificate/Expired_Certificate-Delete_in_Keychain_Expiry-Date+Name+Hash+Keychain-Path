@@ -1,9 +1,16 @@
 #!/bin/bash
 
 # Removed/Failed to Remove | Expiry Date | Certificate Name | SHA-256 Hash | Keychain Path
+# Removed/Failed to Remove |20-Jan-2024 | Manikandan R | 40C6326E5B3458F07A1D2E4DDBEF59728A425C92612FA022263C73BA51FEB8E | "/Users/test/Library/Keychains/login.keychain-db" |test 
+# Removed/Failed to Remove |20-Jan-2024 | Manikandan R | B6E53632BDC2A20670CEAF2DCA9FFE92BE130DF100D6B3777646D6541921745 | "/Users/test/Library/Keychains/login.keychain-db" |test
 
 # Output file
-output_file="/tmp/expired_certificates_info.txt"
+output_file="/Users/Shared/Delete_expired_certificates_info.txt"
+
+# Ensure the directory and output files have proper permissions for all users
+chmod 777 /Users/Shared
+touch "$output_file"
+chmod 666 "$output_file"
 
 # Create or clear the output file and add the header
 > "$output_file"
@@ -11,54 +18,98 @@ output_file="/tmp/expired_certificates_info.txt"
 # Current date for comparison
 current_date=$(date +"%Y-%m-%d")
 
-# Use security command to find all certificates and process each one
-/usr/bin/security find-certificate -a -Z | while IFS= read -r line; do
-    # Extract the SHA-256 hash
-    if [[ $line == *"SHA-256 hash:"* ]]; then 
-        sha256=$(echo "$line" | awk '{print $3}')
-    fi
+# Get the currently logged-in user
+currentUser=$( echo "show State:/Users/ConsoleUser" | scutil | awk '/Name :/ { print $3 }' )
 
-    # Extract the certificate name
-    if [[ $line == *"alis"* ]]; then 
-        cert_name=$(echo "$line" | sed 's/.*"alis"<blob>="\([^"]*\)".*/\1/')
-    fi
+# Global check if there is a user logged in
+if [ -z "$currentUser" -o "$currentUser" = "loginwindow" ]; then
+  echo "No user logged in, cannot proceed"
+  exit 1
+fi
 
-    # Extract the keychain path
-    if [[ $line == *"keychain"* ]]; then 
-        keychain_path=$(echo "$line" | awk -F' ' '{print $NF}')
-    fi
+# Get the current user's UID
+uid=$(id -u "$currentUser")
 
-    # Once we have both the SHA-256 hash and certificate name, fetch the expiry date
-    if [[ -n $cert_name && -n $sha256 ]]; then
-        expiry_date=$(/usr/bin/security find-certificate -a -c "$cert_name" -p -Z | \
-            sed -n 'H; /^SHA-256/h; ${g;p;}' | \
-            /usr/bin/openssl x509 -noout -enddate 2>/dev/null | \
-            cut -f2 -d= | xargs -I {} sh -c 'if [ -n "{}" ]; then date -jf "%b %e %T %Y %Z" "{}" +"%Y-%m-%d"; fi')
+# Convenience function to run a command as the current user
+runAsUser() {
+    launchctl asuser "$uid" sudo -u "$currentUser" "$@"
+}
 
-        # Only print if all information is found and if the certificate is expired
-        if [[ -n $expiry_date && "$expiry_date" < "$current_date" ]]; then
-            # Format expiry date to DD-MMM-YYYY
-            formatted_expiry_date=$(date -jf "%Y-%m-%d" "$expiry_date" +"%d-%b-%Y")
-            printf "%s | %s | %s | %s\n" "$formatted_expiry_date" "$cert_name" "$sha256" "$keychain_path" >> "$output_file"
-            
-            # Remove the expired certificate using its SHA-256 hash
-            if /usr/bin/security delete-certificate -Z "$sha256"; then
-                echo "Removed | $formatted_expiry_date | $cert_name | $sha256 | $keychain_path"
-            else
-                echo "Failed to Remove | $formatted_expiry_date | $cert_name | $sha256 | $keychain_path"
-            fi
+# Function to process certificates in a given keychain (both user and system)
+process_certificates_in_keychain() {
+    local keychain="$1"
+    local runAsUserCommand="$2"  # Whether to use runAsUser or not
+
+    # Extract certificates using the security command
+    $runAsUserCommand security find-certificate -a -Z "$keychain" | while IFS= read -r line; do
+        # Extract the SHA-256 hash
+        if [[ $line == *"SHA-256 hash:"* ]]; then 
+            sha256=$(echo "$line" | awk '{print $3}')
         fi
 
-        # Reset variables for the next certificate
-        expiry_date=""
-        cert_name=""
-        sha256=""
-        keychain_path=""
-    fi
+        # Extract the certificate name
+        if [[ $line == *"alis"* ]]; then 
+            cert_name=$(echo "$line" | sed 's/.*"alis"<blob>="\([^"]*\)".*/\1/')
+        fi
+
+        # Extract the keychain path
+        if [[ $line == *"keychain"* ]]; then 
+            keychain_path=$(echo "$line" | awk -F' ' '{print $NF}')
+        fi
+
+        # Once we have both the SHA-256 hash and certificate name, fetch the expiry date
+        if [[ -n $cert_name && -n $sha256 ]]; then
+            expiry_date=$($runAsUserCommand security find-certificate -a -c "$cert_name" -p -Z | \
+                sed -n 'H; /^SHA-256/h; ${g;p;}' | \
+                $runAsUserCommand openssl x509 -noout -enddate 2>/dev/null | \
+                cut -f2 -d= | xargs -I {} sh -c 'if [ -n "{}" ]; then date -jf "%b %e %T %Y %Z" "{}" +"%Y-%m-%d"; fi')
+
+            # Only print if all information is found and if the certificate is expired
+            if [[ -n $expiry_date && "$expiry_date" < "$current_date" ]]; then
+                # Format expiry date to DD-MMM-YYYY
+                formatted_expiry_date=$(date -jf "%Y-%m-%d" "$expiry_date" +"%d-%b-%Y")
+                #echo "$formatted_expiry_date | $cert_name | $sha256 | $keychain_path |$currentUser" >> "$output_file"
+                
+                # Remove the expired certificate using its SHA-256 hash
+                if $runAsUserCommand security delete-certificate -Z "$sha256"; then
+                    echo "Removed | $formatted_expiry_date | $cert_name | $sha256 | $keychain_path |$currentUser" >> "$output_file"
+                else
+                    echo "Failed to Remove | $formatted_expiry_date | $cert_name | $sha256 | $keychain_path |$currentUser" >> "$output_file"
+                fi
+            fi
+
+            # Reset variables for the next certificate
+            expiry_date=""
+            cert_name=""
+            sha256=""
+            keychain_path=""
+        fi
+    done
+}
+
+# Process user keychains
+user_keychains=($(runAsUser security list-keychains | tr -d '"' | tr ' ' '\n'))
+
+# Process system keychains
+system_keychains=($(sudo security list-keychains | tr -d '"' | tr ' ' '\n'))
+
+# Process each user keychain for certificates
+for keychain in "${user_keychains[@]}"; do
+    process_certificates_in_keychain "$keychain" "runAsUser"
 done
 
-# Check if any expired certificates were found
-if [[ ! -s "$output_file" ]]; then
+# Process each system keychain for certificates
+for keychain in "${system_keychains[@]}"; do
+    process_certificates_in_keychain "$keychain" "sudo"
+done
+
+output=$(cat "$output_file")
+
+# Check if the output file is empty
+if [[ -s "$output_file" ]]; then
+    # Display output
+    echo "$output"
+else
     echo "No_Certificate_Found"
 fi
 

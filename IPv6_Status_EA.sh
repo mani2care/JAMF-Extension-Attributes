@@ -11,14 +11,17 @@ while IFS= read -r service; do
     # Get the current IPv6 configuration for the service
     ipv6_status=$(networksetup -getinfo "$service" | grep "IPv6:" | awk '{print $2}')
 
-    case "$ipv6_status" in
-        Off|Automatic|Manual)
-            echo "$service:$ipv6_status"
-            ;;
-        *)
-            echo "$service:Link-Local"
-            ;;
-    esac
+    # If ipv6_status is empty, treat it as "Link-Local"
+    if [[ -z "$ipv6_status" ]]; then
+        ipv6_status="Link-Local"
+    elif [[ "$ipv6_status" =~ ^(Off|Automatic|Manual)$ ]]; then
+        ipv6_status="$ipv6_status"
+    else
+        # If ipv6_status has any other value or unexpected output, treat it as "Error"
+        ipv6_status="Error"
+    fi
+
+    echo "$service:$ipv6_status"
 done <<< "$network_services"
 
 # Close XML output

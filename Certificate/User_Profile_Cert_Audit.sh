@@ -3,7 +3,9 @@
 ## Created : Manikandan (mani2care)
 ## 1) #Define your certificate profileIdentifier  
 ## 2) #Define your $CERT_NAME= your name of the certificate im used to fetch the name from profile 
-
+## Deploy the profile to get the user data to mac device via plist and use the details to get the user name in "CERT_NAME"
+## https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Computer_Configuration_Profiles.html#ID-00022bba
+## https://derflounder.wordpress.com/2023/02/25/providing-jamf-pro-computer-inventory-information-via-macos-configuration-profile/
 
 PROFILE_ID="B0959CAA-74CB-4C26-7AC271CE4AE4" #Define your certificate profileIdentifier here  
 
@@ -30,6 +32,8 @@ get_cert_name() {
 ########################################
 is_profile_present() {
     CERT_NAME=$(sudo profiles -P -o stdout | grep -i -A 20 "User Info" | grep "full_name" | awk -F'=' '{gsub(/^ *| *$/,"",$2); print $2}' | tr -d ';' | tr -d '"' 2>/dev/null)
+    #CERT_NAME=$(scutil --get ComputerName) ## get the computer host name 
+    #CERT_NAME=$(system_profiler SPHardwareDataType | awk '/Serial Number/ {print $4}') ## get the serialnumber
 
     [ -z "$CERT_NAME" ] && { echo "Name_not_found"; return; }
 
